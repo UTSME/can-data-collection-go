@@ -1,0 +1,3 @@
+[submodule "vendor/github.com/UTSME/serial"]
+	path = vendor/github.com/UTSME/serial
+	url = https://github.com/UTSME/serial.git

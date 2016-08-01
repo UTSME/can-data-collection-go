@@ -1,0 +1,4 @@
+{
+  "SerialPort": "/dev/cu.usbmodem14161",
+  "BaudRate": 115200
+}
