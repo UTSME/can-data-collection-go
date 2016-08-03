@@ -1,10 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"log"
 
-	"github.com/UTSME/serial"
+	"github.com/UTSME/go-serial/serial"
 )
 
 var configFilepath string
@@ -26,23 +27,35 @@ func main() {
 		panic("No configuration file specified")
 	}
 
-	serialConfig := &serial.Config{
-		Name: cfg.SerialPort,
-		Baud: cfg.BaudRate,
+	options := serial.OpenOptions{
+		PortName:        cfg.SerialPort,
+		BaudRate:        cfg.BaudRate,
+		DataBits:        8,
+		StopBits:        1,
+		MinimumReadSize: 4,
 	}
 
-	serialPort, err := serial.OpenPort(serialConfig)
+	port, err := serial.Open(options)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	buf := make([]byte, 128)
-	for {
-		n, err := serialPort.Read(buf)
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Printf("%q", buf[:n])
+	defer port.Close()
+
+	portScanner := bufio.NewScanner(port)
+
+	for portScanner.Scan() {
+		can, _ := parseCANMessage(portScanner.Text())
+		log.Println(can)
 	}
+
+	// for {
+	// 	line, err := portReader.ReadString(delim)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// 	n := len(line)
+	// 	log.Printf("%q", line[:n])
+	// }
 
 }
