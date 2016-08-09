@@ -8,7 +8,7 @@ import (
 
 type Config struct {
 	SerialPort string
-	BaudRate   int
+	BaudRate   uint
 }
 
 var defaultConfig Config = Config{
@@ -34,7 +34,7 @@ func (c *Config) LoadFromFile(filepath string) error {
 		case "SerialPort":
 			c.SerialPort = v.(string)
 		case "BaudRate":
-			c.BaudRate = int(v.(float64))
+			c.BaudRate = uint(v.(float64))
 		default:
 			return errors.New("Unknown config: " + k)
 		}

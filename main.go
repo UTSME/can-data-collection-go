@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/UTSME/go-serial/serial"
 	"github.com/shirou/gopsutil/load"
 )
 
@@ -20,6 +21,8 @@ func init() {
 func main() {
 	flag.Parse()
 
+	stop := make(chan int)
+
 	cfg := defaultConfig
 	if configFilepath != "" {
 		err := cfg.LoadFromFile(configFilepath)
@@ -30,8 +33,6 @@ func main() {
 		panic("No configuration file specified")
 	}
 
-	stop := make(chan int)
-
 	_, err := influxConnect("http://localhost:8086", stop)
 
 	if err != nil {
@@ -40,24 +41,29 @@ func main() {
 
 	go writeStats()
 
-	// serialConfig := &serial.Config{
-	// 	Name: cfg.SerialPort,
-	// 	Baud: cfg.BaudRate,
-	// }
+	options := serial.OpenOptions{
+		PortName:        cfg.SerialPort,
+		BaudRate:        cfg.BaudRate,
+		DataBits:        8,
+		StopBits:        1,
+		MinimumReadSize: 4,
+	}
 
-	// serialPort, err := serial.OpenPort(serialConfig)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	//
-	// buf := make([]byte, 128)
-	// for {
-	// 	n, err := serialPort.Read(buf)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// 	log.Printf("%q", buf[:n])
-	// }
+	var cans chan *CANMessage
+
+	if false {
+		frames := scanSerial(options, stop)
+		packets := decodeFrames(frames, stop)
+		cans = parseMessages(packets, stop)
+	} else {
+		cans = generateCanMessages(stop, time.Second)
+	}
+
+	go func(_cans chan *CANMessage) {
+		for {
+			log.Println(<-_cans)
+		}
+	}(cans)
 
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
@@ -66,13 +72,7 @@ func main() {
 }
 
 func writeStats() {
-	// c := 8
-	// b := make([]byte, c)
 	for {
-		// _, err := rand.Read(b)
-		// if err != nil {
-		// 	log.Fatalln("Error: ", err)
-		// }
 		avg, err := load.Avg()
 		if err != nil {
 			log.Fatalln("Error: ", err)
@@ -103,35 +103,4 @@ func writeStats() {
 
 		time.Sleep(1000 * time.Millisecond)
 	}
-
-	/*for {
-		bp, err := client.NewBatchPoints(client.BatchPointsConfig{
-			Database:  "db",
-			Precision: "ms",
-		})
-
-		if err != nil {
-			log.Fatalln("Error: ", err)
-		}
-
-		// Create a point and add to batch
-		tags := map[string]string{"cpu": "cpu-total"}
-		fields := map[string]interface{}{
-			"idle":   10.1,
-			"system": 53.3,
-			"user":   46.6,
-		}
-		pt, err := client.NewPoint("cpu_usage", tags, fields, time.Now())
-
-		if err != nil {
-			log.Fatalln("Error: ", err)
-		}
-
-		bp.AddPoint(pt)
-
-		// Write the batch
-		c.Write(bp)
-		fmt.Println("stuff")
-		time.Sleep(1 * time.Second)
-	}*/
 }
