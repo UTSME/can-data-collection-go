@@ -1,9 +1,12 @@
 package main
 
 import (
-	"bufio"
 	"flag"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/UTSME/go-serial/serial"
 )
@@ -16,6 +19,8 @@ func init() {
 
 func main() {
 	flag.Parse()
+
+	stop := make(chan int)
 
 	cfg := defaultConfig
 	if configFilepath != "" {
@@ -35,19 +40,41 @@ func main() {
 		MinimumReadSize: 4,
 	}
 
-	port, err := serial.Open(options)
-	if err != nil {
-		log.Fatal(err)
+	var cans chan *CANMessage
+
+	if false {
+		frames := scanSerial(options, stop)
+		packets := decodeFrames(frames, stop)
+		cans = parseMessages(packets, stop)
+	} else {
+		cans = generateCanMessages(stop, time.Second)
 	}
 
-	defer port.Close()
+	go func(_cans chan *CANMessage) {
+		for {
+			log.Println(<-_cans)
+		}
+	}(cans)
 
-	portScanner := bufio.NewScanner(port)
+	ch := make(chan os.Signal)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	log.Println(<-ch)
+	close(stop)
 
-	for portScanner.Scan() {
-		can, _ := parseCANMessage(portScanner.Text())
-		log.Println(can)
-	}
+	// port, err := serial.Open(options)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	//
+	// defer port.Close()
+	//
+	// portScanner := bufio.NewScanner(port)
+	//
+	// for portScanner.Scan() {
+	// 	c := &CANMessage{}
+	// 	c.parse(portScanner.Text())
+	// 	log.Println(c)
+	// }
 
 	// for {
 	// 	line, err := portReader.ReadString(delim)
