@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/UTSME/go-serial/serial"
+	"github.com/shirou/gopsutil/load"
 )
 
 var configFilepath string
@@ -31,6 +32,14 @@ func main() {
 	} else {
 		panic("No configuration file specified")
 	}
+
+	_, err := influxConnect("http://localhost:8086", stop)
+
+	if err != nil {
+		log.Fatalln("Error: ", err)
+	}
+
+	go writeStats()
 
 	options := serial.OpenOptions{
 		PortName:        cfg.SerialPort,
@@ -60,29 +69,38 @@ func main() {
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	log.Println(<-ch)
 	close(stop)
+}
 
-	// port, err := serial.Open(options)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	//
-	// defer port.Close()
-	//
-	// portScanner := bufio.NewScanner(port)
-	//
-	// for portScanner.Scan() {
-	// 	c := &CANMessage{}
-	// 	c.parse(portScanner.Text())
-	// 	log.Println(c)
-	// }
+func writeStats() {
+	for {
+		avg, err := load.Avg()
+		if err != nil {
+			log.Fatalln("Error: ", err)
+		}
 
-	// for {
-	// 	line, err := portReader.ReadString(delim)
-	// 	if err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// 	n := len(line)
-	// 	log.Printf("%q", line[:n])
-	// }
+		misc, err := load.Misc()
+		if err != nil {
+			log.Fatalln("Error: ", err)
+		}
 
+		rightNow := time.Now()
+
+		tags := map[string]string{"machine": "robin"}
+
+		loads := map[string]interface{}{
+			"load1":  avg.Load1,
+			"load5":  avg.Load5,
+			"load15": avg.Load15,
+		}
+		createAndAddPoint("load", tags, loads, rightNow)
+
+		miscs := map[string]interface{}{
+			"ProcsRunning": misc.ProcsRunning,
+			"ProcsBlocked": misc.ProcsBlocked,
+			"Ctxt":         misc.Ctxt,
+		}
+		createAndAddPoint("misc", tags, miscs, rightNow)
+
+		time.Sleep(1000 * time.Millisecond)
+	}
 }
